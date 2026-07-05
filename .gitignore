@@ -12,7 +12,6 @@ coverage/
 *.db
 
 # Tooling / editors / OS
-.claude/
 .vscode/
 .idea/
 .DS_Store
