@@ -27,6 +27,7 @@ services:
 
   api:
     build: ./backend
+    image: price-normalizer-backend
     environment:
       DB_HOST: db
       DB_PORT: 5432
@@ -48,7 +49,9 @@ services:
       - "8000:8000"
 
   worker:
-    build: ./backend
+    # Reuses the image built by `api` — avoids building the backend twice
+    # (parallel double build exhausts CI runner memory/disk).
+    image: price-normalizer-backend
     command: ["node", "dist/worker.js"]
     environment:
       WORKER: "true"
