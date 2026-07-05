@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-pricenorm}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pricenorm}
+      POSTGRES_DB: ${DB_NAME:-pricenorm}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pricenorm} -d ${DB_NAME:-pricenorm}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-pricenorm}
+      DB_PASSWORD: ${DB_PASSWORD:-pricenorm}
+      DB_NAME: ${DB_NAME:-pricenorm}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-60m}
+      MATCH_HIGH: ${MATCH_HIGH:-0.9}
+      MATCH_LOW: ${MATCH_LOW:-0.6}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: ./backend
+    command: ["node", "dist/worker.js"]
+    environment:
+      WORKER: "true"
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-pricenorm}
+      DB_PASSWORD: ${DB_PASSWORD:-pricenorm}
+      DB_NAME: ${DB_NAME:-pricenorm}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:
